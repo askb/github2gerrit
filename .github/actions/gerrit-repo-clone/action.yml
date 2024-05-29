@@ -1,0 +1,52 @@
+---
+name: "gerrit-repository-clone"
+description: "Clone Gerrit repository and return last change"
+
+inputs:
+  host:
+    description: "The Gerrit host with SSH available"
+    required: true
+  port:
+    description: "The SSH port to use. Default 29418"
+    required: false
+    default: "29418"
+  username:
+    description: "The username to connect to the Gerrit host as"
+    required: true
+  key:
+    description: "The SSH private key to use"
+    required: true
+  key_name:
+    description: "The filename for the key, defaults to id_rsa"
+    required: false
+    default: "id_rsa"
+  known_hosts:
+    description: "The known hosts for the host server"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install SSH Key
+      if: ${{ !env.ACT }}
+      uses: shimataro/ssh-key-action@v2.5.1
+      with:
+        key: ${{ inputs.key }}
+        name: ${{ inputs.key_name }}
+        known_hosts: ${{ inputs.known_hosts }}
+        config: |
+            Host ${{ inputs.host }}
+            User ${{ inputs.username }}
+            Port ${{ inputs.port }}
+            PubkeyAcceptedKeyTypes +ssh-rsa
+            IdentityFile ~/.ssh/${{ inputs.key_name }}
+
+    - name: Cloning ${{ inputs.repository}}
+      shell: bash
+      run: |
+        set -x
+        git clone ${{ inputs.username }}@${{ inputs.host }}:${{ inputs.port }}/${{ inputs.repository}}
+        LAST_COMMIT_ID="$(git --no-pager log --format=format:%H -1)"
+        LAST_CHANGE_ID="$(git --no-pager log --format=format:%H -1 --grep "Change-Id: $LAST_COMMIT_ID)"
+        echo "LAST_COMMIT_ID=${LAST_COMMIT_ID}" >> "$GITHUB_ENV"
+        echo "LAST_CHANGE_ID=LAST_CHANGE_ID" >> "$GITHUB_ENV"
